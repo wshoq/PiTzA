@@ -89,7 +89,7 @@ function getDatesInMonth(month) {
       const progress = Math.round(((i + 1) / total) * 100);
       console.log(JSON.stringify({ progress, label }));
 
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 500));
     }
 
   } catch (err) {
