@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>PiTzA 🍕</title>
+  <style>
+    body { font-family: sans-serif; padding: 2em; text-align: center; }
+    .log { margin-top: 2em; background: #f5f5f5; padding: 1em; border-radius: 8px; height: 300px; overflow-y: auto; font-family: monospace; }
+    progress { width: 100%; margin-top: 1em; height: 20px; }
+    button:disabled { opacity: 0.6; }
+    #download {
+      display: none;
+      padding: 0.6em 1.5em;
+      background: #007bff;
+      color: white;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 1.2em;
+    }
+    #magic {
+      display: none;
+      margin: 1em 0;
+      font-size: 2em;
+      font-weight: bold;
+      font-family: 'Papyrus', 'Comic Sans MS', cursive;
+      animation: magicGlow 2s infinite;
+    }
+    @keyframes magicGlow {
+      0% { color: green; opacity: 1; }
+      33% { color: gold; opacity: 0.8; }
+      66% { color: red; opacity: 1; }
+      100% { color: green; opacity: 0.9; }
+    }
+    #button-container {
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div id="title"><h1>🍕 Cudak do PiTzY</h1></div>
+  <div id="magic">✨ wycudowywanie PiTzY ✨</div>
+
+  <form id="form">
+    <label>Email: <input type="email" name="email" required></label><br><br>
+    <label>Hasło: <input type="password" name="password" required></label><br><br>
+    <label>Miesiąc:
+      <select name="month" id="month-select" required></select>
+    </label><br><br>
+    <label>Rok:
+      <select name="year" id="year-select" required></select>
+    </label><br><br>
+    
+   <div id="button-container">
+  <button type="submit" id="cuduj-button" style="font-size: 1.4em; padding: 0.6em 1.4em; border-radius: 10px;">Cuduj</button>
+  <a id="download" href="/podsumowanie.csv" download>Pobierz sobie PiTzE 📥</a>
+  </div>
+
+  </form>
+
+  <progress id="bar" max="100" value="0" style="display: none;"></progress>
+  <div class="log" id="log"></div>
+
+  <audio id="tone" src="tone.ogg" preload="auto"></audio>
+
+  <script>
+    const form = document.getElementById('form');
+    const log = document.getElementById('log');
+    const bar = document.getElementById('bar');
+    const download = document.getElementById('download');
+    const magic = document.getElementById('magic');
+    const title = document.getElementById('title');
+    const tone = document.getElementById('tone');
+    const cudujButton = document.getElementById('cuduj-button');
+
+    // Wypełnij selectory dat
+    const monthSelect = document.getElementById('month-select');
+    const yearSelect = document.getElementById('year-select');
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const previousMonthIndex = now.getMonth() - 1 >= 0 ? now.getMonth() - 1 : 11;
+    const defaultMonth = months[previousMonthIndex];
+    const defaultYear = previousMonthIndex === 11 ? currentYear - 1 : currentYear;
+
+    months.forEach((month, idx) => {
+      const option = document.createElement('option');
+      option.value = `${currentYear}-${month}`;
+      option.textContent = new Date(currentYear, idx).toLocaleString('pl', { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+      if (month === defaultMonth && currentYear === defaultYear) {
+        option.selected = true;
+      }
+      monthSelect.appendChild(option);
+    });
+
+    for (let y = 2020; y <= currentYear; y++) {
+      const option = document.createElement('option');
+      option.value = y;
+      option.textContent = y;
+      if (y === defaultYear) option.selected = true;
+      yearSelect.appendChild(option);
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const selectedMonth = formData.get('month').slice(5);
+      const selectedYear = formData.get('year');
+      const fullMonth = `${selectedYear}-${selectedMonth}`;
+      formData.set('month', fullMonth);
+      const data = new URLSearchParams(formData);
+
+      cudujButton.disabled = true;
+      log.innerHTML = '';
+      bar.value = 0;
+      bar.style.display = 'block';
+      download.style.display = 'none';
+
+      title.style.display = 'none';
+      magic.style.display = 'inline-block';
+
+      await fetch('/start', {
+        method: 'POST',
+        body: data
+      });
+
+      const evt = new EventSource('/progress-stream');
+      evt.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        const line = msg.line;
+
+        if (!line) return;
+
+        const div = document.createElement('div');
+        div.textContent = line;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.progress !== undefined) {
+            bar.value = parsed.progress;
+          }
+        } catch (e) {}
+
+        if (line.includes('Cudowanie zakończone')) {
+          evt.close();
+          magic.textContent = '✨ Wycudowano PiTzE ✨';
+          tone.play();
+
+          cudujButton.style.display = 'none';
+          download.style.display = 'inline-block';
+        }
+      };
+    });
+  </script>
+</body>
+</html>
